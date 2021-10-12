@@ -1,9 +1,10 @@
 const router = require("express").Router();
-
+const jwt = require("jsonwebtoken")
 const { checkUsernameExists, validateRoleName } = require('./auth-middleware');
 const { JWT_SECRET } = require("../secrets"); // use this secret!
 const { add } = require('../users/users-model');
 const bcrypt = require('bcryptjs');
+
 router.post("/register", validateRoleName, async (req, res, next) => {
   try {
     const { username, password } = req.body;
@@ -31,6 +32,20 @@ router.post("/register", validateRoleName, async (req, res, next) => {
 
 
 router.post("/login", checkUsernameExists, (req, res, next) => {
+  try {
+    if (req.user && bcrypt.compareSync(req.body.password, req.user.password)) {
+
+      const token = buildToken(req.user)
+      res.status(200).json({
+        message: `${req.user.username} is back!`,
+        token: token
+      })
+    } else {
+      next({ status: 401, message: 'Invalid credentials' })
+    }
+  } catch (error) {
+    next(error);
+  }
   /**
     [POST] /api/auth/login { "username": "sue", "password": "1234" }
 
@@ -51,5 +66,23 @@ router.post("/login", checkUsernameExists, (req, res, next) => {
     }
    */
 });
+
+function buildToken(user) {
+  const payload = {
+    subject: user.user_id,
+    username: user.username,      // what we see on our payload
+    role_name: user.role_name,
+  }
+  const options = {
+    expiresIn: '1d'
+  }
+  return jwt.sign(
+    payload,
+    JWT_SECRET,
+    options,
+  )
+
+
+}
 
 module.exports = router;
